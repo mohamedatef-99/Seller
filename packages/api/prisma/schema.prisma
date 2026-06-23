@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  NEW // created, not yet sent to courier
+  PENDING // pushed to courier, awaiting pickup
+  IN_TRANSIT // out for delivery
+  DELIVERED // customer received, COD collected by courier
+  RETURNED // failed delivery, coming back
+  CANCELLED // killed before shipping
+}
+
+enum CodStatus {
+  PENDING // money not yet collected (order not delivered)
+  COLLECTED // courier collected cash from customer, not yet remitted to seller
+  SETTLED // courier paid the seller — money is in hand
+}
+
+model Seller {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  businessName String
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Bosta connection (per-seller — multi-tenant). API key stored AES-256-GCM
+  // encrypted at rest; never returned to the browser.
+  bostaApiKeyEnc   String? // ciphertext, format v1:iv:tag:ct (base64)
+  bostaEnv         String  @default("staging") // 'staging' | 'production'
+  bostaConnectedAt DateTime?
+
+  products Product[]
+  orders   Order[]
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  sellerId  String
+  seller    Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name      String
+  price     Decimal  @db.Decimal(10, 2) // default unit price in EGP
+  sku       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([sellerId])
+}
+
+model Order {
+  id       String @id @default(cuid())
+  sellerId String
+  seller   Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Customer details (entered in the 15-second flow — denormalized, no customer table in v1)
+  customerName  String
+  customerPhone String
+  addressLine   String
+  governorate   String
+
+  status OrderStatus @default(NEW)
+
+  // Money: total COD to collect, snapshotted on the order so dashboard math
+  // never depends on joining live product prices.
+  codAmount   Decimal @db.Decimal(10, 2) // what the customer pays on delivery
+  shippingFee Decimal @default(0) @db.Decimal(10, 2)
+
+  // Courier (BostaAdapter stub fills these)
+  trackingNumber String?
+  courierName    String? @default("bosta")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     OrderItem[]
+  codLedger CodLedger?
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  productName String // snapshot at order time
+  unitPrice   Decimal @db.Decimal(10, 2) // snapshot — price may change later
+  quantity    Int     @default(1)
+
+  @@index([orderId])
+}
+
+model CodLedger {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  expectedAmount  Decimal @db.Decimal(10, 2) // = order.codAmount at creation
+  collectedAmount Decimal @default(0) @db.Decimal(10, 2) // courier has the cash
+  settledAmount   Decimal @default(0) @db.Decimal(10, 2) // seller has been paid
+
+  status      CodStatus @default(PENDING)
+  collectedAt DateTime?
+  settledAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+}

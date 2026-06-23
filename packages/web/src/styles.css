@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+/* Numbers stay LTR even inside an RTL layout. */
+.num {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

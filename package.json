@@ -1,0 +1,24 @@
+{
+  "name": "cod-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "COD cash tracker for Egyptian IG/TikTok sellers",
+  "workspaces": [
+    "packages/shared",
+    "packages/api",
+    "packages/web"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "build:shared": "npm run build -w @cod/shared",
+    "db:migrate": "npm run db:migrate -w @cod/api",
+    "db:seed": "npm run db:seed -w @cod/api",
+    "db:reset": "npm run db:reset -w @cod/api",
+    "start:api": "npm run start:dev -w @cod/api",
+    "start:web": "npm run start -w @cod/web"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

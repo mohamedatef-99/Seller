@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cod_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cod
+      POSTGRES_PASSWORD: cod
+      POSTGRES_DB: cod_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - cod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cod -d cod_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cod_pgdata:
